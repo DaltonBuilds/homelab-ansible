@@ -1,0 +1,4 @@
+*.retry
+/tmp/
+k3s-kubeconfig.yaml
+.ansible-vault-pass
