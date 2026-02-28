@@ -1,4 +1,39 @@
-*.retry
-/tmp/
-k3s-kubeconfig.yaml
+# --- Ansible Secrets & Security ---
+.vault_pass
+*.vault_pass
 .ansible-vault-pass
+
+# Ignore local SSH keys if stored in the project
+*.key
+*.pem
+id_rsa*
+
+# --- Kubernetes / k3s ---
+kubeconfig
+*.kubeconfig
+.kube/
+k3s-kubeconfig.yaml
+
+# Ignore certificates and cluster-specific tokens
+*.crt
+*.cacert
+cluster-token
+
+# --- Ansible Temp & Runtime Files ---
+*.retry
+*.log
+.ansible/
+facts.cache
+/tmp/
+
+# For local virtual environments for ansible-lint/playbooks
+venv/
+.venv/
+node_modules/
+
+# --- OS & Editor Specific ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
