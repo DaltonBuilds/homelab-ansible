@@ -1,0 +1,12 @@
+---
+- name: Run common configuration on all nodes
+  import_playbook: playbooks/common.yaml
+
+- name: Install k3s control plane
+  import_playbook: playbooks/k3s-server.yaml
+
+- name: Install k3s worker nodes
+  import_playbook: playbooks/k3s-agent.yaml
+
+- name: Install and configure Tailscale
+  import_playbook: playbooks/tailscale.yaml
