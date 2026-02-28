@@ -1,0 +1,15 @@
+---
+- name: Install k3s workers
+  hosts: workers
+  become: true
+  vars:
+    k3s_url: "https://{{ hostvars['gandalf']['ansible_host'] }}:6443"
+    k3s_token: "{{ hostvars['gandalf']['k3s_token'] }}"
+  tasks:
+    - name: Install k3s agent
+      shell: >
+        curl -sfL https://get.k3s.io | K3S_URL={{ k3s_url }} K3S_TOKEN={{ k3s_token }} sh -s - agent
+        --node-ip {{ ansible_host }}
+        --flannel-iface {{ ansible_default_ipv4.interface }}
+      args:
+        creates: /var/lib/rancher/k3s/agent/kubelet.kubeconfig

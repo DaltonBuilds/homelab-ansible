@@ -1,0 +1,67 @@
+---
+- name: Setup Tailscale on k3s nodes
+  hosts: k3s_cluster
+  become: true
+  vars:
+    tailscale_tags: ["tag:homelab"]
+
+  tasks:
+    - name: Get temporary OAuth access token
+      delegate_to: localhost
+      run_once: true
+      become: false
+      vars:
+        ansible_connection: local
+        ansible_become: false
+      uri:
+        url: "https://api.tailscale.com/api/v2/oauth/token"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          client_id: "{{ tailscale_oauth_client_id }}"
+          client_secret: "{{ tailscale_oauth_client_secret }}"
+          grant_type: "client_credentials"
+      register: oauth_response
+
+    - name: Generate Tailscale auth key via API
+      delegate_to: localhost
+      become: false
+      throttle: 1
+      when: >
+        hostvars[inventory_hostname]['tailscale_status'] is undefined
+        or hostvars[inventory_hostname]['tailscale_status'].rc != 0
+      vars:
+        ansible_connection: local
+        ansible_become: false
+      uri:
+        url: "https://api.tailscale.com/api/v2/tailnet/-/keys"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ oauth_response.json.access_token }}"
+        body_format: json
+        body:
+          capabilities:
+            devices:
+              create:
+                reusable: false
+                ephemeral: false
+                tags: "{{ tailscale_tags }}"
+          expirySeconds: 300
+      register: tailscale_key_response
+
+    - name: Install Tailscale
+      shell: curl -fsSL https://tailscale.com/install.sh | sh
+      args:
+        creates: /usr/bin/tailscale
+
+    - name: Join Tailscale network
+      throttle: 1
+      when: >
+        hostvars[inventory_hostname]['tailscale_status'] is undefined
+        or hostvars[inventory_hostname]['tailscale_status'].rc != 0
+      command:
+        argv:
+          - tailscale
+          - up
+          - "--auth-key={{ tailscale_key_response.json.key }}"
+          - --accept-routes

@@ -1,0 +1,65 @@
+---
+- name: Common base configuration
+  hosts: k3s_cluster
+  become: true
+  tasks:
+    - name: Update all packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Install essential packages
+      apt:
+        name:
+          - curl
+          - wget
+          - apt-transport-https
+          - ca-certificates
+          - open-iscsi
+          - nfs-common
+          - jq
+          - vim
+          - htop
+        state: present
+
+    - name: Enable and start iscsid (Longhorn requirement)
+      systemd:
+        name: iscsid
+        state: started
+        enabled: true
+
+    - name: Disable swap (Kubernetes requirement)
+      command: swapoff -a
+      when: ansible_swaptotal_mb > 0
+
+    - name: Remove swap from fstab
+      lineinfile:
+        path: /etc/fstab
+        regexp: '\sswap\s'
+        state: absent
+
+    - name: Set timezone
+      timezone:
+        name: America/Denver
+
+    - name: Harden SSH - disable password authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        state: present
+      notify: restart sshd
+
+    - name: Harden SSH - disable root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+        state: present
+      notify: restart sshd
+
+  handlers:
+    - name: restart sshd
+      systemd:
+        name: ssh
+        state: restarted
