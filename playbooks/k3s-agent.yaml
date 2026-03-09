@@ -1,6 +1,6 @@
 ---
 - name: Install k3s workers
-  hosts: workers
+  hosts: fellowship_workers
   become: true
   vars:
     k3s_url: "https://{{ hostvars['gandalf']['ansible_host'] }}:6443"

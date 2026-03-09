@@ -1,6 +1,6 @@
 ---
 - name: Install k3s control plane
-  hosts: control_plane
+  hosts: fellowship_control_plane
   become: true
   tasks:
     - name: Install k3s server

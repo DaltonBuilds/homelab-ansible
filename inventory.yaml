@@ -3,6 +3,16 @@ all:
     ansible_user: dalton
     ansible_become: true
   children:
+    # --- Infrastructure topology ---
+    baremetal:
+      hosts:
+        gandalf:
+          ansible_host: 192.168.40.30
+        aragorn:
+          ansible_host: 192.168.40.31
+        legolas:
+          ansible_host: 192.168.40.32
+
     proxmox_vms:
       hosts:
         nfs-server:
@@ -11,12 +21,13 @@ all:
           ansible_host: 192.168.40.52
         gimli:
           ansible_host: 192.168.40.33
-        
+
     proxmox_lxc:
       hosts:
         garage:
           ansible_host: 192.168.40.53
 
+    # --- Service roles ---
     nfs:
       hosts:
         nfs-server:
@@ -25,26 +36,33 @@ all:
       hosts:
         garage:
 
-    mgmt:
+    # --- Fellowship cluster (main) ---
+    fellowship_control_plane:
+      hosts:
+        gandalf:
+
+    fellowship_workers:
+      hosts:
+        aragorn:
+        legolas:
+        gimli:
+
+    fellowship:
+      children:
+        fellowship_control_plane:
+        fellowship_workers:
+
+    # --- Management/monitoring cluster ---
+    mgmt_control_plane:
       hosts:
         mgmt-plane:
 
-    control_plane:
-      hosts:
-        gandalf:
-          ansible_host: 192.168.40.30
-
-    workers:
-      hosts:
-        aragorn:
-          ansible_host: 192.168.40.31
-        legolas:
-          ansible_host: 192.168.40.32
-        gimli:
-          ansible_host: 192.168.40.33
-
-    k3s_cluster:
+    mgmt_cluster:
       children:
-        control_plane:
-        workers:
+        mgmt_control_plane:
 
+    # --- All k3s nodes (cross-cluster) ---
+    k3s_all:
+      children:
+        fellowship:
+        mgmt_cluster:
