@@ -1,6 +1,6 @@
 ---
 - name: Common base configuration
-  hosts: k3s_cluster
+  hosts: k3s_all
   become: true
   tasks:
     - name: Update all packages
@@ -15,20 +15,20 @@
           - wget
           - apt-transport-https
           - ca-certificates
-          - open-iscsi
+          # - open-iscsi # needed for Longhorn but not needed for NFS/ZFS
           - nfs-common
           - jq
           - vim
           - htop
         state: present
 
-    - name: Enable and start iscsid (Longhorn requirement)
-      systemd:
-        name: iscsid
-        state: started
-        enabled: true
+    # - name: Enable and start iscsid # (using NFS/ZFS instead of Longhorn now)
+    #   systemd:
+    #     name: iscsid
+    #     state: started
+    #     enabled: true
 
-    - name: Disable swap (Kubernetes requirement)
+    - name: Disable swap # Kubernetes requirement
       command: swapoff -a
       when: ansible_swaptotal_mb > 0
 
@@ -40,7 +40,7 @@
 
     - name: Set timezone
       timezone:
-        name: America/Denver
+        name: America/Denver # TODO: can this be a variable? Revisit later
 
     - name: Harden SSH - disable password authentication
       lineinfile:
