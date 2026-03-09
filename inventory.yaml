@@ -3,16 +3,46 @@ all:
     ansible_user: dalton
     ansible_become: true
   children:
+    proxmox_vms:
+      hosts:
+        nfs-server:
+          ansible_host: 192.168.40.51
+        mgmt-plane:
+          ansible_host: 192.168.40.52
+        gimli:
+          ansible_host: 192.168.40.33
+        
+    proxmox_lxc:
+      hosts:
+        garage:
+          ansible_host: 192.168.40.53
+
+    nfs:
+      hosts:
+        nfs-server:
+
+    object_storage:
+      hosts:
+        garage:
+
+    mgmt:
+      hosts:
+        mgmt-plane:
+
     control_plane:
       hosts:
         gandalf:
           ansible_host: 192.168.40.30
+
     workers:
       hosts:
         aragorn:
           ansible_host: 192.168.40.31
         legolas:
           ansible_host: 192.168.40.32
+        gimli:
+          ansible_host: 192.168.40.33
+
     k3s_cluster:
       children:
         control_plane:
