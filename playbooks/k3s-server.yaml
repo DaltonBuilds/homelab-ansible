@@ -8,7 +8,10 @@
         curl -sfL https://get.k3s.io | sh -s - server
         --write-kubeconfig-mode 644
         --disable servicelb
-        --flannel-iface {{ ansible_default_ipv4.interface }}
+        --disable traefik
+        --flannel-backend=none
+        --disable-network-policy
+        --disable-kube-proxy 
         --node-ip {{ ansible_host }}
         --tls-san {{ ansible_host }}
       args:
