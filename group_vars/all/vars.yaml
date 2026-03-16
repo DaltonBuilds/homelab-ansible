@@ -1,0 +1,4 @@
+---
+# Canonical Storage Configuration
+nfs_server_ip: "192.168.40.51"
+nfs_export_path: "/tank/k8s"
