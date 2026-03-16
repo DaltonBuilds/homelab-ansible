@@ -20,6 +20,7 @@
           - jq
           - vim
           - htop
+          - prometheus-node-exporter
         state: present
 
     # - name: Enable and start iscsid # (using NFS/ZFS instead of Longhorn now)
@@ -28,7 +29,14 @@
     #     state: started
     #     enabled: true
 
-    - name: Disable swap # Kubernetes requirement
+    - name: Enable and start node_exporter
+      systemd:
+        name: prometheus-node-exporter
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Disable swap 
       command: swapoff -a
       when: ansible_swaptotal_mb > 0
 
