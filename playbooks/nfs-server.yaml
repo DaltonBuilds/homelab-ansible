@@ -1,0 +1,42 @@
+---
+- name: Install ZFS server
+  hosts: nfs
+  become: true
+
+  tasks:
+    - name: Install NFS and ZFS
+      apt:
+        name:
+          - zfsutils-linux
+          - nfs-kernel-server
+          - zfs-auto-snapshot
+
+    - name: Create ZFS pool
+      shell: zpool create tank {{ zfs_data_disk }}
+      args:
+        creates: /tank
+
+    - name: Create ZFS dataset
+      shell: zfs create tank/k8s
+      args:
+        creates: /tank/k8s
+
+    - name: Set compression
+      shell: zfs set compression=lz4 tank/k8s
+ 
+    - name: Configure /etc/exports
+      lineinfile:
+        path: /etc/exports
+        line: '/tank/k8s 192.168.40.0/24(rw,sync,no_subtree_check,root_squash)'
+        state: present
+      notify: reload exports
+
+    - name: Enable and start NFS server
+      systemd:
+        name: nfs-kernel-server
+        state: started
+        enabled: true
+
+  handlers:
+    - name: reload exports
+      ansible.builtin.command: exportfs -ra

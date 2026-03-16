@@ -2,9 +2,11 @@
 - name: Install k3s workers
   hosts: fellowship_workers
   become: true
+  
   vars:
     k3s_url: "https://{{ hostvars['gandalf']['ansible_host'] }}:6443"
     k3s_token: "{{ hostvars['gandalf']['k3s_token'] }}"
+ 
   tasks:
     - name: Install k3s agent
       shell: >
