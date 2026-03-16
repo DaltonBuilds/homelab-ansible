@@ -31,6 +31,7 @@ all:
     nfs:
       hosts:
         nfs-server:
+          zfs_data_disk: /dev/sdb
 
     object_storage:
       hosts:
