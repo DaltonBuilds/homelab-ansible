@@ -27,7 +27,7 @@
     - name: Configure /etc/exports
       lineinfile:
         path: /etc/exports
-        line: '/tank/k8s 192.168.40.0/24(rw,sync,no_subtree_check,root_squash)'
+        line: '{{ nfs_export_path }} 192.168.40.0/24(rw,sync,no_subtree_check,root_squash)'
         state: present
       notify: reload exports
 
