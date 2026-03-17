@@ -13,3 +13,143 @@
         url: "https://garagehq.deuxfleurs.fr/_releases/{{ garage_version }}/{{ garage_arch }}/garage"
         dest: /usr/local/bin/garage
         mode: '0755'
+
+    # Directories must be present before writing the config (toml)
+    - name: Create Garage data directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+      loop:
+        - /var/lib/garage/meta
+        - /var/lib/garage/data
+
+    # Write config file (cluster secret stored in ansible-vault)
+    - name: Write /etc/garage.toml
+      copy:
+        dest: /etc/garage.toml
+        owner: root
+        group: root
+        mode: '0600'
+        content: |
+          metadata_dir = "/var/lib/garage/meta"
+          data_dir = "/var/lib/garage/data"
+          db_engine = "lmdb"
+
+          replication_factor = 1
+
+          [s3_api]
+          s3_region = "garage"
+          api_bind_addr = "[::]:3900"
+          root_domain = ".s3.garage.local"
+
+          [s3_web]
+          bind_addr = "[::]:3902"
+          root_domain = ".web.garage.local"
+
+          [admin]
+          api_bind_addr = "[::]:3903"
+
+          [rpc]
+          bind_addr = "[::]:3901"
+          secret = "{{ garage_rpc_secret }}"
+      notify: restart garage
+
+    # Create systemd service unit
+    - name: Create Garage systemd service
+      copy:
+        dest: /etc/systemd/system/garage.service
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=Garage S3-compatible object store
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Environment='RUST_LOG=garage=info' 'RUST_BACKTRACE=1'
+          Type=simple
+          ExecStart=/usr/local/bin/garage server
+          Restart=on-failure
+          RestartSec=5s
+          NoNewPrivileges=true
+          ProtectHome=true
+          LimitNOFILE=42000
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: restart garage
+
+    # Enable and start Garage
+    - name: Enable and start Garage
+      systemd:
+        name: garage
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Get Garage node ID
+      command: garage node id -q
+      register: garage_node_id # used in the next step
+      changed_when: false
+
+    # Assign layout
+    - name: Check existing Garage layout
+      command: garage layout show
+      register: garage_layout
+      changed_when: false
+
+    - name: Assign Garage node to layout
+      command: >
+        garage layout assign
+        -z dc1
+        -c 200G
+        {{ garage_node_id.stdout | trim }}
+      when: "'200.0 GB' not in garage_layout.stdout and '200G' not in garage_layout.stdout"
+      register: layout_assigned
+   
+    # Apply layout
+    - name: Apply Garage layout
+      command: garage layout apply --version 1
+      when: layout_assigned.changed
+
+    # Create the access key
+    - name: Check if homelab-service-key exists
+      command: garage key info homelab-service-key
+      register: garage_key_check
+      failed_when: false
+      changed_when: false
+
+    - name: Create Garage access key
+      command: garage key create homelab-service-key
+      when: garage_key_check.rc != 0
+
+    # Create the bucket
+    - name: Check if loki-chunks bucket exists
+      command: garage bucket info loki-chunks
+      register: garage_bucket_check
+      failed_when: false
+      changed_when: false
+
+    - name: Create loki-chunks bucket
+      command: garage bucket create loki-chunks
+      when: garage_bucket_check.rc != 0
+
+    # Grant bucket permissions
+    - name: Allow homelab-service-key on loki-chunks
+      command: >
+        garage bucket allow
+        --read --write --owner
+        loki-chunks
+        --key homelab-service-key
+      when: garage_bucket_check.rc != 0
+
+  handlers:
+    - name: restart garage
+      systemd:
+        name: garage
+        state: restarted
