@@ -1,0 +1,15 @@
+---
+- name: Install and configure Garage object storage
+  hosts: object_storage
+  become: true
+
+  vars:
+    garage_version: "v1.3.1"
+    garage_arch: "{{ 'x86_64' if ansible_architecture == 'x86_64' else 'aarch64' }}-unknown-linux-musl"
+
+  tasks:
+    - name: Download Garage binary
+      get_url: 
+        url: "https://garagehq.deuxfleurs.fr/_releases/{{ garage_version }}/{{ garage_arch }}/garage"
+        dest: /usr/local/bin/garage
+        mode: '0755'
