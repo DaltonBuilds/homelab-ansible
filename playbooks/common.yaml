@@ -1,33 +1,27 @@
 ---
-- name: Common base configuration
-  hosts: k3s_all
+# Linux base play
+- name: Base configuration for all managed Linux hosts
+  hosts: linux_hosts
   become: true
+
   tasks:
-    - name: Update all packages
+    - name: Update apt cache
       apt:
         update_cache: yes
-        upgrade: dist
+        cache_valid_time: 3600
 
-    - name: Install essential packages
+    - name: Install base packages
       apt:
         name:
           - curl
           - wget
           - apt-transport-https
           - ca-certificates
-          # - open-iscsi # needed for Longhorn but not needed for NFS/ZFS
-          - nfs-common
-          - jq
           - vim
           - htop
+          - jq
           - prometheus-node-exporter
         state: present
-
-    # - name: Enable and start iscsid # (using NFS/ZFS instead of Longhorn now)
-    #   systemd:
-    #     name: iscsid
-    #     state: started
-    #     enabled: true
 
     - name: Enable and start node_exporter
       systemd:
@@ -36,19 +30,24 @@
         enabled: true
         daemon_reload: true
 
-    - name: Disable swap 
-      command: swapoff -a
-      when: ansible_swaptotal_mb > 0
+    - name: Ensure dalton user exists with sudo privileges
+      user:
+        name: dalton
+        groups: sudo
+        append: true
+        shell: /bin/bash
+        create_home: true
+        state: present
 
-    - name: Remove swap from fstab
-      lineinfile:
-        path: /etc/fstab
-        regexp: '\sswap\s'
-        state: absent
+    - name: Set up SSH authorized key for dalton
+      authorized_key:
+        user: dalton
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
 
     - name: Set timezone
       timezone:
-        name: America/Denver # TODO: can this be a variable? Revisit later
+        name: America/Denver
 
     - name: Harden SSH - disable password authentication
       lineinfile:
@@ -64,6 +63,7 @@
         regexp: '^#?PermitRootLogin'
         line: 'PermitRootLogin no'
         state: present
+      when: ansible_user != 'root'
       notify: restart sshd
 
   handlers:
@@ -71,3 +71,29 @@
       systemd:
         name: ssh
         state: restarted
+
+# Kubernetes play
+- name: k3s node configuration
+  hosts: k3s_all
+  become: true
+
+  tasks:
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+
+    - name: Install k3s node packages
+      apt:
+        name:
+          - nfs-common
+        state: present
+
+    - name: Disable swap
+      command: swapoff -a
+      when: ansible_swaptotal_mb > 0
+
+    - name: Remove swap from fstab
+      lineinfile:
+        path: /etc/fstab
+        regexp: '\sswap\s'
+        state: absent
