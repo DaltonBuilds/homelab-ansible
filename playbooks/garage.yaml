@@ -33,6 +33,8 @@
           db_engine = "lmdb"
 
           replication_factor = 1
+          rpc_bind_addr = "[::]:3901"
+          rpc_secret = "{{ garage_rpc_secret }}"
 
           [s3_api]
           s3_region = "garage"
@@ -45,10 +47,6 @@
 
           [admin]
           api_bind_addr = "[::]:3903"
-
-          [rpc]
-          bind_addr = "[::]:3901"
-          secret = "{{ garage_rpc_secret }}"
       notify: restart garage
 
     # Create systemd service unit
@@ -88,6 +86,12 @@
         state: started
         enabled: true
         daemon_reload: true
+
+    - name: Wait for Garage to be ready
+      wait_for:
+        port: 3903
+        host: "127.0.0.1"
+        timeout: 30
 
     - name: Get Garage node ID
       command: garage node id -q
