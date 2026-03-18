@@ -50,6 +50,22 @@
         regexp: 'https://127.0.0.1:6443'
         replace: "https://{{ hostvars['gandalf']['ansible_host'] }}:6443"
 
+    - name: Rename kubeconfig entries from default to fellowship
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_connection: local
+        ansible_become: false
+      replace:
+        path: /tmp/k3s-kubeconfig.yaml
+        regexp: '{{ item.regexp }}'
+        replace: '{{ item.replace }}'
+      loop:
+        - { regexp: 'current-context: default', replace: 'current-context: fellowship' }
+        - { regexp: '    cluster: default', replace: '    cluster: fellowship' }
+        - { regexp: '    user: default', replace: '    user: fellowship' }
+        - { regexp: '  name: default', replace: '  name: fellowship' }
+
     - name: Ensure ~/.kube directory exists locally
       delegate_to: localhost
       become: false
@@ -61,7 +77,7 @@
         state: directory
         mode: '0700' # Strict permissions for safety
 
-    - name: Move kubeconfig to local ~/.kube/config
+    - name: Move kubeconfig to local ~/.kube/config-fellowship
       delegate_to: localhost
       become: false
       vars:
@@ -69,5 +85,5 @@
         ansible_become: false
       copy:
         src: /tmp/k3s-kubeconfig.yaml
-        dest: "~/.kube/config"
+        dest: "~/.kube/config-fellowship"
         mode: '0600' # limiting permissions - security best practices

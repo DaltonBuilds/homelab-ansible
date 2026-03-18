@@ -20,3 +20,58 @@
       until: result.rc == 0
       retries: 10
       delay: 10
+
+    - name: Fetch kubeconfig to local machine
+      fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: /tmp/mgmt-kubeconfig.yaml
+        flat: yes
+
+    - name: Update kubeconfig server URL to mgmt-plane IP
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_connection: local
+        ansible_become: false
+      replace:
+        path: /tmp/mgmt-kubeconfig.yaml
+        regexp: 'https://127.0.0.1:6443'
+        replace: "https://{{ ansible_host }}:6443"
+
+    - name: Rename kubeconfig entries from default to mgmt
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_connection: local
+        ansible_become: false
+      replace:
+        path: /tmp/mgmt-kubeconfig.yaml
+        regexp: '{{ item.regexp }}'
+        replace: '{{ item.replace }}'
+      loop:
+        - { regexp: 'current-context: default', replace: 'current-context: mgmt' }
+        - { regexp: '    cluster: default', replace: '    cluster: mgmt' }
+        - { regexp: '    user: default', replace: '    user: mgmt' }
+        - { regexp: '  name: default', replace: '  name: mgmt' }
+
+    - name: Ensure ~/.kube directory exists locally
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_connection: local
+        ansible_become: false
+      file:
+        path: "~/.kube"
+        state: directory
+        mode: '0700'
+
+    - name: Copy kubeconfig to local ~/.kube/config-mgmt
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_connection: local
+        ansible_become: false
+      copy:
+        src: /tmp/mgmt-kubeconfig.yaml
+        dest: "~/.kube/config-mgmt"
+        mode: '0600'
