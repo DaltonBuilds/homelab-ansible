@@ -14,17 +14,11 @@
         dest: /usr/local/bin/garage
         mode: '0755'
 
-    # Directories must be present before writing the config (toml)
-    - name: Create Garage data directories
+    - name: Ensure /mnt/data is writable by the Garage service
       file:
-        path: "{{ item }}"
+        path: /mnt/data
         state: directory
-        owner: root
-        group: root
-        mode: '0700'
-      loop:
-        - /var/lib/garage/meta
-        - /var/lib/garage/data
+        mode: '0777'
 
     # Write config file (cluster secret stored in ansible-vault)
     - name: Write /etc/garage.toml
@@ -32,10 +26,10 @@
         dest: /etc/garage.toml
         owner: root
         group: root
-        mode: '0600'
+        mode: '0644'
         content: |
           metadata_dir = "/var/lib/garage/meta"
-          data_dir = "/var/lib/garage/data"
+          data_dir = "/mnt/data"
           db_engine = "lmdb"
 
           replication_factor = 1
@@ -76,6 +70,9 @@
           ExecStart=/usr/local/bin/garage server
           Restart=on-failure
           RestartSec=5s
+          DynamicUser=true
+          StateDirectory=garage
+          ReadWritePaths=/mnt/data
           NoNewPrivileges=true
           ProtectHome=true
           LimitNOFILE=42000

@@ -23,15 +23,24 @@ all:
           ansible_host: 192.168.40.33
 
     proxmox_lxc:
+      vars:
+        ansible_user: root
+        ansible_become: false
       hosts:
         garage:
           ansible_host: 192.168.40.53
+
+    # All managed Linux hosts — base configuration applies here
+    linux_hosts:
+      children:
+        baremetal:
+        proxmox_vms:
+        proxmox_lxc:
 
     # --- Service roles ---
     nfs:
       hosts:
         nfs-server:
-          zfs_data_disk: /dev/sdb
 
     object_storage:
       hosts:
