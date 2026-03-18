@@ -11,8 +11,21 @@
           - nfs-kernel-server
           - zfs-auto-snapshot
 
+    - name: Find unpartitioned data disk
+      shell: |
+        lsblk -dno NAME,TYPE | awk '$2=="disk" {print $1}' | sort | while read disk; do
+          parts=$(lsblk -no NAME "/dev/$disk" | wc -l)
+          if [ "$parts" -eq 1 ]; then
+            echo "/dev/$disk"
+            break
+          fi
+        done
+      register: detected_data_disk
+      changed_when: false
+      failed_when: detected_data_disk.stdout | length == 0
+
     - name: Create ZFS pool
-      shell: zpool create tank {{ zfs_data_disk }}
+      shell: zpool create tank {{ detected_data_disk.stdout }}
       args:
         creates: /tank
 
