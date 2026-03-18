@@ -11,6 +11,11 @@
           - nfs-kernel-server
           - zfs-auto-snapshot
 
+    - name: Check if ZFS pool already exists
+      stat:
+        path: /tank
+      register: tank_stat
+
     - name: Find unpartitioned data disk
       shell: |
         lsblk -dno NAME,TYPE | awk '$2=="disk" {print $1}' | sort | while read disk; do
@@ -23,11 +28,14 @@
       register: detected_data_disk
       changed_when: false
       failed_when: detected_data_disk.stdout | length == 0
+      when: not tank_stat.stat.exists
 
     - name: Create ZFS pool
       shell: zpool create tank {{ detected_data_disk.stdout }}
       args:
         creates: /tank
+      when: not tank_stat.stat.exists
+
 
     - name: Create ZFS dataset
       shell: zfs create tank/k8s
@@ -40,7 +48,8 @@
     - name: Configure /etc/exports
       lineinfile:
         path: /etc/exports
-        line: '{{ nfs_export_path }} 192.168.40.0/24(rw,sync,no_subtree_check,root_squash)'
+        regexp: '^{{ nfs_export_path | regex_escape }}\s'
+        line: '{{ nfs_export_path }} 192.168.40.0/24(rw,sync,no_subtree_check,no_root_squash)'
         state: present
       notify: reload exports
 
