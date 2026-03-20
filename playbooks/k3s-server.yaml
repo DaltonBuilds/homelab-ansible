@@ -2,6 +2,10 @@
 - name: Install k3s control plane
   hosts: fellowship_control_plane
   become: true
+
+  vars:
+    gateway_api_version: "v1.5.1"
+
   tasks:
     - name: Install k3s server
       shell: >
@@ -88,3 +92,9 @@
         src: /tmp/k3s-kubeconfig.yaml
         dest: "~/.kube/config-fellowship"
         mode: '0600' # limiting permissions - security best practices
+
+    - name: Install Gateway API CRDs
+      command: kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/{{ gateway_api_version }}/standard-install.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      changed_when: false
