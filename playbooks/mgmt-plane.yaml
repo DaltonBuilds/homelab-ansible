@@ -53,6 +53,7 @@
         - { regexp: '    cluster: default', replace: '    cluster: mgmt' }
         - { regexp: '    user: default', replace: '    user: mgmt' }
         - { regexp: '  name: default', replace: '  name: mgmt' }
+        - { regexp: '- name: default', replace: '- name: mgmt' }
 
     - name: Ensure ~/.kube directory exists locally
       delegate_to: localhost
