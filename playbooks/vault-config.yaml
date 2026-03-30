@@ -1,0 +1,163 @@
+---
+# Prerequisites:
+#   - Vault pod running and unsealed
+#   - kubectl context set to the workload cluster (fellowship)
+#   - Ansible collections installed (see requirements.yaml at repo root):
+#       ansible-galaxy collection install -r requirements.yaml
+#   - hvac Python library installed (one-time, into user site-packages):
+#       pip3 install --user hvac
+#
+# Usage:
+#   ansible-playbook playbooks/vault-config.yaml \
+#     --extra-vars "vault_token=<root-token>"
+#
+#   Or pull the token from pass directly:
+#   ansible-playbook playbooks/vault-config.yaml \
+#     --extra-vars "vault_token=$(pass homelab/vault-root-token)"
+
+- name: Configure Vault secrets engines, policies, and auth
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    ansible_become: false
+    vault_addr: "http://127.0.0.1:8200"
+    vault_token: "{{ vault_token | mandatory('vault_token is required — pass it via --extra-vars') }}"
+
+  pre_tasks:
+    - name: Start kubectl port-forward for Vault
+      shell: "kubectl port-forward -n vault svc/vault 8200:8200 &>/dev/null & echo $!"
+      register: port_forward_job
+
+    - name: Wait for Vault to be reachable
+      uri:
+        url: "{{ vault_addr }}/v1/sys/health"
+        status_code: [200, 429, 473, 501, 503]
+      register: vault_health
+      retries: 10
+      delay: 2
+      until: vault_health.status in [200, 429, 473, 501, 503]
+
+  tasks:
+    - block:
+        # --- Secrets engines ---
+
+        - name: Check if KV v2 engine is already mounted
+          community.hashi_vault.vault_read:
+            url: "{{ vault_addr }}"
+            token: "{{ vault_token }}"
+            path: sys/mounts/secret
+          register: kv_mount_check
+          failed_when: false
+          no_log: true
+
+        - name: Enable KV v2 secrets engine at path 'secret'
+          community.hashi_vault.vault_write:
+            url: "{{ vault_addr }}"
+            token: "{{ vault_token }}"
+            path: sys/mounts/secret
+            data:
+              type: kv-v2
+          no_log: true
+          when: kv_mount_check.failed
+
+        - name: Check if database secrets engine is already mounted
+          community.hashi_vault.vault_read:
+            url: "{{ vault_addr }}"
+            token: "{{ vault_token }}"
+            path: sys/mounts/database
+          register: db_mount_check
+          failed_when: false
+          no_log: true
+
+        - name: Enable database secrets engine
+          community.hashi_vault.vault_write:
+            url: "{{ vault_addr }}"
+            token: "{{ vault_token }}"
+            path: sys/mounts/database
+            data:
+              type: database
+          no_log: true
+          when: db_mount_check.failed
+
+        # --- ESO reader policy ---
+
+        - name: Create eso-reader policy
+          community.hashi_vault.vault_write:
+            url: "{{ vault_addr }}"
+            token: "{{ vault_token }}"
+            path: sys/policies/acl/eso-reader
+            data:
+              policy: |
+                path "secret/data/*" {
+                  capabilities = ["read"]
+                }
+                path "database/creds/*" {
+                  capabilities = ["read"]
+                }
+          no_log: true
+
+        # --- Kubernetes auth method ---
+
+        # 400 is the expected response if already enabled — safe to ignore
+        - name: Enable Kubernetes auth method
+          community.hashi_vault.vault_write:
+            url: "{{ vault_addr }}"
+            token: "{{ vault_token }}"
+            path: sys/auth/kubernetes
+            data:
+              type: kubernetes
+          failed_when: false
+          no_log: true
+
+        - name: Configure Kubernetes auth method
+          community.hashi_vault.vault_write:
+            url: "{{ vault_addr }}"
+            token: "{{ vault_token }}"
+            path: auth/kubernetes/config
+            data:
+              kubernetes_host: "https://kubernetes.default.svc"
+          no_log: true
+
+        - name: Create ESO role in Kubernetes auth
+          community.hashi_vault.vault_write:
+            url: "{{ vault_addr }}"
+            token: "{{ vault_token }}"
+            path: auth/kubernetes/role/eso
+            data:
+              bound_service_account_names: external-secrets
+              bound_service_account_namespaces: external-secrets
+              policies: eso-reader
+              ttl: 1h
+          no_log: true
+
+        # --- Verification ---
+
+        - name: Verify — list enabled secrets engines
+          community.hashi_vault.vault_read:
+            url: "{{ vault_addr }}"
+            token: "{{ vault_token }}"
+            path: sys/mounts
+          register: mounts
+          no_log: true
+
+        - name: Verify — list enabled auth methods
+          community.hashi_vault.vault_read:
+            url: "{{ vault_addr }}"
+            token: "{{ vault_token }}"
+            path: sys/auth
+          register: auth_methods
+          no_log: true
+
+        - name: Show configured engines and auth methods
+          debug:
+            msg:
+              - "Secrets engines: {{ mounts.data.data.keys() | list }}"
+              - "Auth methods: {{ auth_methods.data.data.keys() | list }}"
+
+      always:
+        - name: Stop kubectl port-forward
+          command: "kill {{ port_forward_job.stdout }}"
+          failed_when: false
+          when: port_forward_job is defined and port_forward_job.stdout is defined
