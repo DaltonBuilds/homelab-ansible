@@ -25,8 +25,9 @@ All bare-metal and VM hosts use `ansible_user: dalton`. LXC containers use `ansi
 | `garage.yaml` | garage | Garage S3 binary, systemd unit, bucket setup |
 | `mgmt-plane.yaml` | mgmt-plane | Single-node k3s for the observability cluster |
 | `tailscale.yaml` | All hosts | Tailscale installation and auth |
+| `vault-config.yaml` | localhost | One-time Vault bootstrap: secrets engines, eso-reader policy, Kubernetes auth |
 
-`site.yaml` runs all playbooks in order for a full environment rebuild.
+`site.yaml` runs all playbooks in order for a full environment rebuild. `vault-config.yaml` is excluded from `site.yaml` — it requires Vault to already be initialized and unsealed, and a root token provided at runtime.
 
 ## Notable Decisions
 
@@ -36,12 +37,22 @@ All bare-metal and VM hosts use `ansible_user: dalton`. LXC containers use `ansi
 
 **Secrets via Ansible Vault** — `group_vars/all/secrets.yaml` is encrypted. Run playbooks with `--ask-vault-pass`.
 
+**Collection and Python dependencies** — `requirements.yaml` lists required Ansible Galaxy collections. Install once with `ansible-galaxy collection install -r requirements.yaml`. The `community.hashi_vault` collection also requires the `hvac` Python library: `pip3 install --user hvac`.
+
 ## Usage
 
 ```bash
+# Install dependencies (one-time)
+ansible-galaxy collection install -r requirements.yaml
+pip3 install --user hvac
+
 # Run base configuration on all hosts
 ansible-playbook -i inventory.yaml playbooks/common.yaml --ask-vault-pass
 
 # Full rebuild
 ansible-playbook -i inventory.yaml site.yaml --ask-vault-pass
+
+# Bootstrap Vault (one-time — Vault must be running and unsealed first)
+ansible-playbook playbooks/vault-config.yaml --ask-vault-pass \
+  --extra-vars "vault_token=$(pass homelab/vault-root-token)"
 ```
