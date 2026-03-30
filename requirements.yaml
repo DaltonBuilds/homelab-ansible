@@ -1,0 +1,17 @@
+---
+# Ansible Galaxy requirements — install before running any playbook:
+#
+#   ansible-galaxy collection install -r requirements.yaml
+#
+# AWX / Ansible Tower installs these automatically before every run.
+# For local use, re-run the above command whenever this file changes.
+
+# Python library dependencies (install separately — not managed by ansible-galaxy):
+#   pip3 install --user hvac        # Required by: community.hashi_vault collection
+
+collections:
+  - name: community.hashi_vault
+    # Required by: playbooks/vault-config.yaml
+
+  - name: kubernetes.core
+    # Required by: playbooks/k3s-server.yaml
